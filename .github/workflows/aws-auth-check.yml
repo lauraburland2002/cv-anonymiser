@@ -40,6 +40,15 @@ jobs:
           aws cloudformation list-stacks \
             --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE UPDATE_ROLLBACK_COMPLETE
 
+      - name: Dump relevant env vars
+        run: |
+          echo "AWS_ACCOUNT_ID=$AWS_ACCOUNT_ID"
+          echo "CDK_DEFAULT_ACCOUNT=$CDK_DEFAULT_ACCOUNT"
+          echo "CDK_DEFAULT_REGION=$CDK_DEFAULT_REGION"
+          echo "AWS_REGION=$AWS_REGION"
+          echo "AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION"
+
+
       # ---- CDK build/deploy bits ----
 
       - name: Setup Node (for CDK CLI)
