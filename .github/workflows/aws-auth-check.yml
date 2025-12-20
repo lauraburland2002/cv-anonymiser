@@ -1,0 +1,26 @@
+name: AWS OIDC Auth Check
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [ "main" ]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  auth:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS creds via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::460742884922:role/AWSDeployFromGitHub
+          aws-region: eu-west-2
+
+      - name: Who am I?
+        run: aws sts get-caller-identity
+
+      - name: List CloudFormation stacks (proof of access)
+        run: aws cloudformation list-stacks --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE
