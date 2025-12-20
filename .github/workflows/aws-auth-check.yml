@@ -1,0 +1,76 @@
+name: AWS OIDC auth + CDK deploy
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch: {}
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      AWS_REGION: eu-west-2
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Configure AWS creds via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::460742884922:role/AWSDeployFromGitHub
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Who am I?
+        run: |
+          aws sts get-caller-identity
+          aws configure list
+
+      - name: Set AWS_ACCOUNT_ID env var
+        run: |
+          echo "AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)" >> $GITHUB_ENV
+
+      - name: List CloudFormation stacks (proof of access)
+        run: |
+          aws cloudformation list-stacks \
+            --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE UPDATE_ROLLBACK_COMPLETE
+
+      # ---- CDK build/deploy bits ----
+
+      - name: Setup Node (for CDK CLI)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install AWS CDK CLI
+        run: |
+          npm install -g aws-cdk
+          cdk --version
+
+      - name: CDK bootstrap (idempotent)
+        run: |
+          cdk bootstrap aws://$460742884922/${{ env.eu_west_2 }}
+
+      - name: CDK synth
+        run: |
+          cdk synth
+
+      - name: CDK deploy
+        run: |
+          cdk deploy --require-approval never
+
