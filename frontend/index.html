@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CV Anonymiser</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+
+  <body>
+    <header class="header">
+      <div class="container header__inner">
+        <div>
+          <h1>CV Anonymiser</h1>
+          <p class="muted">Paste a CV, anonymise it, and download the result.</p>
+        </div>
+        <div class="pill">MVP</div>
+      </div>
+    </header>
+
+    <main class="container">
+      <section class="card">
+        <h2>Input</h2>
+
+        <div class="row">
+          <label class="label" for="cvText">CV text</label>
+          <span class="muted small" id="charCount">0 chars</span>
+        </div>
+
+        <textarea
+          id="cvText"
+          class="textarea"
+          rows="12"
+          placeholder="Paste CV text here…"
+        ></textarea>
+
+        <div class="row gap">
+          <div class="file">
+            <label class="button secondary" for="cvFile">Upload .txt</label>
+            <input id="cvFile" type="file" accept=".txt,text/plain" />
+            <span class="muted small" id="fileName">No file selected</span>
+          </div>
+
+          <div class="actions">
+            <button id="anonymiseBtn" class="button primary">
+              Anonymise
+            </button>
+            <button id="clearBtn" class="button secondary">
+              Clear
+            </button>
+          </div>
+        </div>
+
+        <div class="note">
+          <strong>API:</strong> <code id="apiUrlLabel">Not configured</code>
+        </div>
+
+        <div id="status" class="status" role="status" aria-live="polite"></div>
+      </section>
+
+      <section class="card">
+        <div class="row">
+          <h2>Output</h2>
+          <div class="actions">
+            <button id="copyBtn" class="button secondary" disabled>Copy</button>
+            <button id="downloadBtn" class="button secondary" disabled>
+              Download .txt
+            </button>
+          </div>
+        </div>
+
+        <pre id="output" class="output" aria-label="Anonymised output"></pre>
+      </section>
+
+      <footer class="footer">
+        <p class="muted small">
+          Demo MVP — built for end-to-end CI/CD + CDK deployment.
+        </p>
+      </footer>
+    </main>
+
+    <!-- config.js MUST be loaded before app.js -->
+    <script src="./config.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
