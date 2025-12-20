@@ -1,9 +1,9 @@
-name: AWS OIDC auth + CDK deploy
+name: Deploy (CDK)
 
 on:
   push:
     branches: ["main"]
-  workflow_dispatch: {}
+  workflow_dispatch:
 
 permissions:
   id-token: write
@@ -13,49 +13,36 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
 
-    env:
-      AWS_REGION: eu-west-2
-
     steps:
-      - name: Checkout repo
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Configure AWS creds via OIDC
+      # (Optional but recommended) show what CDK env vars exist
+      - name: Debug env + identity
+        run: |
+          echo "CDK_DEFAULT_ACCOUNT=$CDK_DEFAULT_ACCOUNT"
+          echo "CDK_DEFAULT_REGION=$CDK_DEFAULT_REGION"
+          aws --version || true
+
+      - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::460742884922:role/AWSDeployFromGitHub
-          aws-region: ${{ env.AWS_REGION }}
+          aws-region: eu-west-2
 
-      - name: Who am I?
-        run: |
-          aws sts get-caller-identity
-          aws configure list
+      - name: Confirm assumed identity
+        run: aws sts get-caller-identity
 
-      - name: Set AWS_ACCOUNT_ID env var
-        run: |
-          echo "AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)" >> $GITHUB_ENV
-
-      - name: List CloudFormation stacks (proof of access)
-        run: |
-          aws cloudformation list-stacks \
-            --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE UPDATE_ROLLBACK_COMPLETE
-
-      - name: Dump relevant env vars
-        run: |
-          echo "AWS_ACCOUNT_ID=$AWS_ACCOUNT_ID"
-          echo "CDK_DEFAULT_ACCOUNT=$CDK_DEFAULT_ACCOUNT"
-          echo "CDK_DEFAULT_REGION=$CDK_DEFAULT_REGION"
-          echo "AWS_REGION=$AWS_REGION"
-          echo "AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION"
-
-
-      # ---- CDK build/deploy bits ----
-
-      - name: Setup Node (for CDK CLI)
+      # CDK CLI is Node-based; install Node then CDK
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: "20"
 
+      - name: Install CDK CLI
+        run: npm install -g aws-cdk
+
+      # Python CDK app deps
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -66,18 +53,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Install AWS CDK CLI
-        run: |
-          npm install -g aws-cdk
-          cdk --version
+      - name: CDK synth (sanity check)
+        run: cdk synth
 
       - name: CDK bootstrap (idempotent)
-        run: |
-          cdk bootstrap aws://$460742884922/${{ env.eu_west_2 }}
+        run: cdk bootstrap
 
-      - name: CDK synth
-        run: |
-          cdk synth
+      - name: CDK deploy
+        run: cdk deploy --require-approval never
 
       - name: CDK deploy
         run: |
