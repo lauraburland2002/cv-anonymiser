@@ -50,17 +50,15 @@ class CvAnonymiserStack(Stack):
             encryption_key=key,
         )
 
-        # Lambda (FastAPI via Mangum) as a CONTAINER IMAGE (easy for CI/CD)
-        fn = _lambda.DockerImageFunction(
+        # Lambda (FastAPI via Mangum) 
+        cv_lambda = lambda_.Function(
             self,
             "CvAnonymiserFunction",
-            code=_lambda.DockerImageCode.from_image_asset("lambda"),
+            runtime=lambda_.Runtime.PYTHON_3_11,
+            handler="app.handler",
+            code=lambda_.Code.from_asset("lambda"),
+            timeout=Duration.seconds(10),
             memory_size=512,
-            timeout=Duration.seconds(15),
-            environment={
-                "RULES_PARAM_NAME": rules_param.parameter_name,
-                "AUDIT_TABLE_NAME": audit_table.table_name,
-            },
         )
 
         # Least privilege permissions
