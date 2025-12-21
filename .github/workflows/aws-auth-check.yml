@@ -17,13 +17,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # (Optional but recommended) show what CDK env vars exist
-      - name: Debug env + identity
-        run: |
-          echo "CDK_DEFAULT_ACCOUNT=$CDK_DEFAULT_ACCOUNT"
-          echo "CDK_DEFAULT_REGION=$CDK_DEFAULT_REGION"
-          aws --version || true
-
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -33,7 +26,7 @@ jobs:
       - name: Confirm assumed identity
         run: aws sts get-caller-identity
 
-      # CDK CLI is Node-based; install Node then CDK
+      # CDK CLI is Node-based
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -42,7 +35,6 @@ jobs:
       - name: Install CDK CLI
         run: npm install -g aws-cdk
 
-      # Python CDK app deps
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -53,16 +45,17 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Set env vars for CDK bootstrap/deploy
+        run: |
+          echo "AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)" >> $GITHUB_ENV
+          echo "AWS_REGION=eu-west-2" >> $GITHUB_ENV
+
       - name: CDK synth (sanity check)
         run: cdk synth
 
-      - name: CDK bootstrap (idempotent)
-        run: cdk bootstrap
+      - name: CDK bootstrap (idempotent, correct account/region)
+        run: cdk bootstrap aws://$AWS_ACCOUNT_ID/$AWS_REGION
 
       - name: CDK deploy
         run: cdk deploy --require-approval never
-
-      - name: CDK deploy
-        run: |
-          cdk deploy --require-approval never
 
