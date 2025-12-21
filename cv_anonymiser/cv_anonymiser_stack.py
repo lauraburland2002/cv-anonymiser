@@ -1,15 +1,19 @@
+
 from aws_cdk import (
     Duration,
     RemovalPolicy,
     Stack,
     CfnOutput,
     aws_apigateway as apigateway,
+    aws_cloudfront as cloudfront,
+    aws_cloudfront_origins as origins,
     aws_dynamodb as dynamodb,
     aws_kms as kms,
     aws_lambda as lambda_,
+    aws_s3 as s3,
+    aws_s3_deployment as s3deploy,
     aws_ssm as ssm,
     aws_wafv2 as wafv2,
-    aws_logs as logs,
 )
 from constructs import Construct
 
@@ -18,38 +22,38 @@ class CvAnonymiserStack(Stack):
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
-        # KMS key for DynamoDB encryption (and optional decrypt permission usage)
+        # -------------------------
+        # Data security primitives
+        # -------------------------
         key = kms.Key(
             self,
             "CvAnonymiserKey",
             enable_key_rotation=True,
-            removal_policy=RemovalPolicy.DESTROY,  # ok for assignment; change for real prod
+            removal_policy=RemovalPolicy.DESTROY,  # ok for assignment
         )
 
-        # SSM Parameter Store: rules/lexicon (encrypted at rest by SSM by default)
         rules_param = ssm.StringParameter(
             self,
             "RedactionRules",
             parameter_name="/cv-anonymiser/redaction-rules",
             string_value='{"redact":["email","phone"],"salt":"demo-salt-change-me"}',
+            # NOTE: SecureString "type" is deprecated in CDK v2; use StringParameter + WithDecryption in code.
         )
 
-        # DynamoDB audit table (no raw CV stored)
         audit_table = dynamodb.Table(
             self,
             "AuditTable",
-            partition_key=dynamodb.Attribute(
-                name="requestId",
-                type=dynamodb.AttributeType.STRING,
-            ),
+            partition_key=dynamodb.Attribute(name="requestId", type=dynamodb.AttributeType.STRING),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             time_to_live_attribute="ttl",
-            removal_policy=RemovalPolicy.DESTROY,  # ok for assignment; change for real prod
+            removal_policy=RemovalPolicy.DESTROY,  # ok for assignment
             encryption=dynamodb.TableEncryption.CUSTOMER_MANAGED,
             encryption_key=key,
         )
 
-        # Lambda (FastAPI via Mangum) - code lives in ./lambda folder
+        # -------------------------
+        # Lambda API (FastAPI + Mangum)
+        # -------------------------
         cv_lambda = lambda_.Function(
             self,
             "CvAnonymiserFunction",
@@ -58,25 +62,25 @@ class CvAnonymiserStack(Stack):
             code=lambda_.Code.from_asset("lambda"),
             timeout=Duration.seconds(10),
             memory_size=512,
-            log_retention=logs.RetentionDays.ONE_WEEK,
             environment={
                 "RULES_PARAM_NAME": rules_param.parameter_name,
                 "AUDIT_TABLE_NAME": audit_table.table_name,
-                "SALT_FALLBACK": "demo-salt-change-me",
+                # FRONTEND_ORIGIN gets set once we create CloudFront below
             },
         )
 
-        # Least privilege permissions
         rules_param.grant_read(cv_lambda)
         audit_table.grant_write_data(cv_lambda)
-        key.grant_decrypt(cv_lambda)  # decrypt for DynamoDB customer-managed key operations
+        key.grant_decrypt(cv_lambda)
 
-        # API Gateway REST API in front of Lambda
+        # -------------------------
+        # API Gateway
+        # -------------------------
         api = apigateway.LambdaRestApi(
             self,
             "CvAnonymiserApi",
             handler=cv_lambda,
-            proxy=True,  # FastAPI handles routes like /health and /anonymise
+            proxy=True,  # FastAPI handles /health and /anonymise
             deploy_options=apigateway.StageOptions(
                 stage_name="prod",
                 tracing_enabled=True,
@@ -86,7 +90,9 @@ class CvAnonymiserStack(Stack):
             ),
         )
 
-        # WAFv2 Web ACL (basic managed rules) attached to API Gateway stage
+        # -------------------------
+        # WAF on API Gateway stage
+        # -------------------------
         web_acl = wafv2.CfnWebACL(
             self,
             "ApiWebAcl",
@@ -129,7 +135,69 @@ class CvAnonymiserStack(Stack):
             web_acl_arn=web_acl.attr_arn,
         )
 
-        # Outputs (what your frontend needs)
+        # -------------------------
+        # Frontend: S3 + CloudFront
+        # -------------------------
+        site_bucket = s3.Bucket(
+            self,
+            "FrontendBucket",
+            block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
+            encryption=s3.BucketEncryption.S3_MANAGED,
+            enforce_ssl=True,
+            versioned=True,
+            removal_policy=RemovalPolicy.DESTROY,  # ok for assignment
+            auto_delete_objects=True,              # ok for assignment
+        )
+
+        distribution = cloudfront.Distribution(
+            self,
+            "FrontendDistribution",
+            default_behavior=cloudfront.BehaviorOptions(
+                origin=origins.S3Origin(site_bucket),
+                viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+                cache_policy=cloudfront.CachePolicy.CACHING_OPTIMIZED,
+            ),
+            default_root_object="index.html",
+            error_responses=[
+                # If you later turn this into an SPA, these help avoid 404s on refresh.
+                cloudfront.ErrorResponse(
+                    http_status=403,
+                    response_http_status=200,
+                    response_page_path="/index.html",
+                ),
+                cloudfront.ErrorResponse(
+                    http_status=404,
+                    response_http_status=200,
+                    response_page_path="/index.html",
+                ),
+            ],
+        )
+
+        # Lock down CORS to your CloudFront site (good for security marks)
+        frontend_origin = f"[https://{distribution.domain_name}]https://{distribution.domain_name}"
+        cv_lambda.add_environment("FRONTEND_ORIGIN", frontend_origin)
+
+        # Deploy frontend assets from ./frontend AND generate config.js with the current API URL
+        s3deploy.BucketDeployment(
+            self,
+            "DeployFrontend",
+            destination_bucket=site_bucket,
+            distribution=distribution,
+            distribution_paths=["/*"],
+            sources=[
+                s3deploy.Source.asset("frontend"),
+                # overwrite/ensure config.js always matches deployed API URL
+                s3deploy.Source.data(
+                    "config.js",
+                    f'window.APP_CONFIG={{API_BASE_URL:"{api.url}"}};',
+                ),
+            ],
+        )
+
+        # -------------------------
+        # Outputs
+        # -------------------------
         CfnOutput(self, "ApiUrl", value=api.url)
+        CfnOutput(self, "FrontendUrl", value=frontend_origin)
         CfnOutput(self, "AuditTableName", value=audit_table.table_name)
         CfnOutput(self, "RulesParamName", value=rules_param.parameter_name)
