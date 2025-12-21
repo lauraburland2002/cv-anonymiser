@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-import os
-
 import aws_cdk as cdk
 
 from cv_anonymiser.cv_anonymiser_stack import CvAnonymiserStack
