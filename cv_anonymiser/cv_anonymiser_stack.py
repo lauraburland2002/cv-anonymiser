@@ -9,6 +9,7 @@ from aws_cdk import (
     aws_lambda as lambda_,
     aws_ssm as ssm,
     aws_wafv2 as wafv2,
+    aws_logs as logs,
 )
 from constructs import Construct
 
@@ -25,12 +26,12 @@ class CvAnonymiserStack(Stack):
             removal_policy=RemovalPolicy.DESTROY,  # ok for assignment; change for real prod
         )
 
-        # SSM Parameter Store: rules/lexicon (SecureString)
+        # SSM Parameter Store: rules/lexicon (encrypted at rest by SSM by default)
         rules_param = ssm.StringParameter(
-        self,
-        "RedactionRules",
-        parameter_name="/cv-anonymiser/redaction-rules",
-        string_value='{"redact":["email","phone"],"salt":"demo-salt-change-me"}',
+            self,
+            "RedactionRules",
+            parameter_name="/cv-anonymiser/redaction-rules",
+            string_value='{"redact":["email","phone"],"salt":"demo-salt-change-me"}',
         )
 
         # DynamoDB audit table (no raw CV stored)
@@ -57,9 +58,11 @@ class CvAnonymiserStack(Stack):
             code=lambda_.Code.from_asset("lambda"),
             timeout=Duration.seconds(10),
             memory_size=512,
+            log_retention=logs.RetentionDays.ONE_WEEK,
             environment={
                 "RULES_PARAM_NAME": rules_param.parameter_name,
                 "AUDIT_TABLE_NAME": audit_table.table_name,
+                "SALT_FALLBACK": "demo-salt-change-me",
             },
         )
 
@@ -73,7 +76,7 @@ class CvAnonymiserStack(Stack):
             self,
             "CvAnonymiserApi",
             handler=cv_lambda,
-            proxy=True,  # FastAPI handles routes
+            proxy=True,  # FastAPI handles routes like /health and /anonymise
             deploy_options=apigateway.StageOptions(
                 stage_name="prod",
                 tracing_enabled=True,
