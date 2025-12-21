@@ -27,11 +27,10 @@ class CvAnonymiserStack(Stack):
 
         # SSM Parameter Store: rules/lexicon (SecureString)
         rules_param = ssm.StringParameter(
-            self,
-            "RedactionRules",
-            parameter_name="/cv-anonymiser/redaction-rules",
-            string_value='{"redact":["email","phone"],"salt":"demo-salt-change-me"}',
-            type=ssm.ParameterType.SECURE_STRING,
+        self,
+        "RedactionRules",
+        parameter_name="/cv-anonymiser/redaction-rules",
+        string_value='{"redact":["email","phone"],"salt":"demo-salt-change-me"}',
         )
 
         # DynamoDB audit table (no raw CV stored)
