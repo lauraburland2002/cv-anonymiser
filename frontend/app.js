@@ -92,11 +92,6 @@ try {
 setStatus("");
 setOutput("");
 
-if (!API_BASE_URL || API_BASE_URL.includes("https://a04tb89lzf.execute-api.eu-west-2.amazonaws.com/prod")) {
-setStatus("API_BASE_URL is not set in frontend/config.js", "error");
-return;
-}
-
 const inputText = (cvTextEl.value || "").trim();
 if (!inputText) {
 setStatus("Please paste CV text (or upload a .txt) first.", "error");
