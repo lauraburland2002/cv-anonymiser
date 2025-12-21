@@ -5,9 +5,8 @@ from aws_cdk import (
     CfnOutput,
     aws_apigateway as apigateway,
     aws_dynamodb as dynamodb,
-    aws_iam as iam,
     aws_kms as kms,
-    aws_lambda as _lambda,
+    aws_lambda as lambda_,
     aws_ssm as ssm,
     aws_wafv2 as wafv2,
 )
@@ -18,7 +17,7 @@ class CvAnonymiserStack(Stack):
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
-        # KMS key for SSM SecureString + DynamoDB encryption
+        # KMS key for DynamoDB encryption (and optional decrypt permission usage)
         key = kms.Key(
             self,
             "CvAnonymiserKey",
@@ -27,9 +26,6 @@ class CvAnonymiserStack(Stack):
         )
 
         # SSM Parameter Store: rules/lexicon (SecureString)
-
-        from aws_cdk import aws_ssm as ssm
-
         rules_param = ssm.StringParameter(
             self,
             "RedactionRules",
@@ -42,7 +38,10 @@ class CvAnonymiserStack(Stack):
         audit_table = dynamodb.Table(
             self,
             "AuditTable",
-            partition_key=dynamodb.Attribute(name="requestId", type=dynamodb.AttributeType.STRING),
+            partition_key=dynamodb.Attribute(
+                name="requestId",
+                type=dynamodb.AttributeType.STRING,
+            ),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             time_to_live_attribute="ttl",
             removal_policy=RemovalPolicy.DESTROY,  # ok for assignment; change for real prod
@@ -50,7 +49,7 @@ class CvAnonymiserStack(Stack):
             encryption_key=key,
         )
 
-        # Lambda (FastAPI via Mangum) 
+        # Lambda (FastAPI via Mangum) - code lives in ./lambda folder
         cv_lambda = lambda_.Function(
             self,
             "CvAnonymiserFunction",
@@ -59,18 +58,22 @@ class CvAnonymiserStack(Stack):
             code=lambda_.Code.from_asset("lambda"),
             timeout=Duration.seconds(10),
             memory_size=512,
+            environment={
+                "RULES_PARAM_NAME": rules_param.parameter_name,
+                "AUDIT_TABLE_NAME": audit_table.table_name,
+            },
         )
 
         # Least privilege permissions
-        rules_param.grant_read(fn)
-        audit_table.grant_write_data(fn)
-        key.grant_decrypt(fn)  # for SecureString decrypt + Dynamo encryption operations
+        rules_param.grant_read(cv_lambda)
+        audit_table.grant_write_data(cv_lambda)
+        key.grant_decrypt(cv_lambda)  # decrypt for DynamoDB customer-managed key operations
 
         # API Gateway REST API in front of Lambda
         api = apigateway.LambdaRestApi(
             self,
             "CvAnonymiserApi",
-            handler=fn,
+            handler=cv_lambda,
             proxy=True,  # FastAPI handles routes
             deploy_options=apigateway.StageOptions(
                 stage_name="prod",
@@ -112,7 +115,10 @@ class CvAnonymiserStack(Stack):
             ],
         )
 
-        api_stage_arn = f"arn:aws:apigateway:{self.region}::/restapis/{api.rest_api_id}/stages/{api.deployment_stage.stage_name}"
+        api_stage_arn = (
+            f"arn:aws:apigateway:{self.region}::/restapis/"
+            f"{api.rest_api_id}/stages/{api.deployment_stage.stage_name}"
+        )
 
         wafv2.CfnWebACLAssociation(
             self,
@@ -125,13 +131,3 @@ class CvAnonymiserStack(Stack):
         CfnOutput(self, "ApiUrl", value=api.url)
         CfnOutput(self, "AuditTableName", value=audit_table.table_name)
         CfnOutput(self, "RulesParamName", value=rules_param.parameter_name)
-
-
-
-
-
-
-
-
-
-        
