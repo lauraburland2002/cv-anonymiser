@@ -27,13 +27,15 @@ class CvAnonymiserStack(Stack):
         )
 
         # SSM Parameter Store: rules/lexicon (SecureString)
+
+        from aws_cdk import aws_ssm as ssm
+
         rules_param = ssm.StringParameter(
             self,
-            "RedactionRulesParam",
-            parameter_name="/cv-anonymiser/rules",
+            "RedactionRules",
+            parameter_name="/cv-anonymiser/redaction-rules",
             string_value='{"redact":["email","phone"],"salt":"demo-salt-change-me"}',
             type=ssm.ParameterType.SECURE_STRING,
-            encryption_key=key,
         )
 
         # DynamoDB audit table (no raw CV stored)
