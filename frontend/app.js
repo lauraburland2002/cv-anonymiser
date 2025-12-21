@@ -102,7 +102,7 @@ setBusy(true);
 setStatus("Calling anonymise API…");
 
 // We expect: POST { text: "..." } and response: { anonymisedText: "..." }
-const res = await fetch(`${API.replace(/\/$/, "")}/anonymise`, {
+const res = await fetch(`${API_BASE_URL.replace(/\/$/, "")}/anonymise`, {
 method: "POST",
 headers: { "Content-Type": "application/json" },
 body: JSON.stringify({ text: inputText }),
