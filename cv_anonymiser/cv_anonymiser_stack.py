@@ -76,11 +76,24 @@ class CvAnonymiserStack(Stack):
         # -------------------------
         # API Gateway
         # -------------------------
+
         api = apigateway.LambdaRestApi(
             self,
             "CvAnonymiserApi",
             handler=cv_lambda,
-            proxy=True,  # FastAPI handles /health and /anonymise
+            proxy=True,
+            default_cors_preflight_options=apigateway.CorsOptions(
+                allow_origins=apigateway.Cors.ALL_ORIGINS,   # tighten later
+                allow_methods=["GET", "POST", "OPTIONS"],
+                allow_headers=[
+                    "Content-Type",
+                    "Authorization",
+                    "X-Amz-Date",
+                    "X-Api-Key",
+                    "X-Amz-Security-Token",
+                ],
+                max_age=Duration.minutes(10),
+            ),
             deploy_options=apigateway.StageOptions(
                 stage_name="prod",
                 tracing_enabled=True,
