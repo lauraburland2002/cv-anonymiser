@@ -108,13 +108,6 @@ anonymiseBtn.addEventListener("click", async () => {
     }
 
     setBusy(true);
-    setStatus("Checking API health…");
-
-    // quick health check (helps you debug 502/CORS fast)
-    const healthRes = await fetch(`${base}/health`, { method: "GET" });
-    if (!healthRes.ok) {
-      throw new Error(`Health check failed (${healthRes.status}).`);
-    }
 
     setStatus("Calling anonymise API…");
 
