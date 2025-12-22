@@ -12,18 +12,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from mangum import Mangum
 
-from fastapi.middleware.cors import CORSMiddleware
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # tighten later
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
+# ✅ 1) Create the app FIRST
 app = FastAPI(title="CV Anonymiser")
 
+# ✅ 2) Then add middleware
 # CORS: allow ONLY your CloudFront site (set by CDK), fallback to "*" for local dev.
 frontend_origin = os.getenv("FRONTEND_ORIGIN", "*")
 allow_origins = ["*"] if frontend_origin == "*" else [frontend_origin]
@@ -74,21 +67,25 @@ def _load_rules() -> Dict[str, Any]:
 
 
 def _redact_email(text: str) -> str:
-    return re.sub(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b", "[REDACTED_EMAIL]", text)
+    return re.sub(
+        r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b",
+        "[REDACTED_EMAIL]",
+        text,
+    )
 
 
 def _redact_phone(text: str) -> str:
     return re.sub(r"\b(\+?\d[\d\s().-]{7,}\d)\b", "[REDACTED_PHONE]", text)
 
 
-def _apply_redaction(text: str, redact: List[str]) -> (str, Dict[str, int]):
+def _apply_redaction(text: str, redact: List[str]) -> tuple[str, Dict[str, int]]:
     counts: Dict[str, int] = {}
     out = text
 
     if "email" in redact:
         before = out
         out = _redact_email(out)
-        counts["email"] = 0 if before == out else 1
+        counts["email"] = 0 if before == out else 1  # MVP signal
 
     if "phone" in redact:
         before = out
@@ -111,14 +108,14 @@ def _write_audit(request_id: str, cv_hash: str, rule_counts: Dict[str, int]) -> 
     table = dynamodb.Table(AUDIT_TABLE_NAME)
 
     now = int(time.time())
-    ttl = now + (7 * 24 * 60 * 60)
+    ttl = now + (7 * 24 * 60 * 60)  # 7 days
 
     item = {
         "requestId": request_id,
         "ts": now,
         "ttl": ttl,
-        "cvHash": cv_hash,
-        "ruleCounts": rule_counts,
+        "cvHash": cv_hash,         # no raw CV stored
+        "ruleCounts": rule_counts, # no raw CV stored
     }
 
     table.put_item(Item=item)
@@ -152,4 +149,5 @@ def anonymise(req: AnonymiseRequest) -> Dict[str, Any]:
     }
 
 
+# Lambda entrypoint for API Gateway proxy
 handler = Mangum(app)
