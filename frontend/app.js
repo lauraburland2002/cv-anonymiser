@@ -18,123 +18,136 @@ const API_BASE_URL = (window.APP_CONFIG && window.APP_CONFIG.API_BASE_URL) || ""
 apiUrlLabelEl.textContent = API_BASE_URL || "Not configured";
 
 function setStatus(message, type = "info") {
-statusEl.classList.remove("error");
-if (type === "error") statusEl.classList.add("error");
-statusEl.textContent = message || "";
+  statusEl.classList.remove("error");
+  if (type === "error") statusEl.classList.add("error");
+  statusEl.textContent = message || "";
 }
 
 function setBusy(isBusy) {
-anonymiseBtn.disabled = isBusy;
-clearBtn.disabled = isBusy;
+  anonymiseBtn.disabled = isBusy;
+  clearBtn.disabled = isBusy;
 }
 
 function setOutput(text) {
-outputEl.textContent = text || "";
-const hasOutput = Boolean(text && text.trim().length);
-copyBtn.disabled = !hasOutput;
-downloadBtn.disabled = !hasOutput;
+  outputEl.textContent = text || "";
+  const hasOutput = Boolean(text && text.trim().length);
+  copyBtn.disabled = !hasOutput;
+  downloadBtn.disabled = !hasOutput;
 }
 
 function updateCharCount() {
-charCountEl.textContent = `${cvTextEl.value.length} chars`;
+  charCountEl.textContent = `${cvTextEl.value.length} chars`;
 }
 
 cvTextEl.addEventListener("input", updateCharCount);
 updateCharCount();
 
 cvFileEl.addEventListener("change", async (e) => {
-const file = e.target.files && e.target.files[0];
-if (!file) {
-fileNameEl.textContent = "No file selected";
-return;
-}
-fileNameEl.textContent = file.name;
+  const file = e.target.files && e.target.files[0];
+  if (!file) {
+    fileNameEl.textContent = "No file selected";
+    return;
+  }
+  fileNameEl.textContent = file.name;
 
-// Read only as text (MVP)
-const text = await file.text();
-cvTextEl.value = text;
-updateCharCount();
+  const text = await file.text();
+  cvTextEl.value = text;
+  updateCharCount();
 });
 
 clearBtn.addEventListener("click", () => {
-cvTextEl.value = "";
-cvFileEl.value = "";
-fileNameEl.textContent = "No file selected";
-setOutput("");
-setStatus("");
-updateCharCount();
+  cvTextEl.value = "";
+  cvFileEl.value = "";
+  fileNameEl.textContent = "No file selected";
+  setOutput("");
+  setStatus("");
+  updateCharCount();
 });
 
 copyBtn.addEventListener("click", async () => {
-const text = outputEl.textContent || "";
-await navigator.clipboard.writeText(text);
-setStatus("Copied output to clipboard.");
-setTimeout(() => setStatus(""), 1200);
+  const text = outputEl.textContent || "";
+  await navigator.clipboard.writeText(text);
+  setStatus("Copied output to clipboard.");
+  setTimeout(() => setStatus(""), 1200);
 });
 
 downloadBtn.addEventListener("click", () => {
-const text = outputEl.textContent || "";
-const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
-const url = URL.createObjectURL(blob);
+  const text = outputEl.textContent || "";
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
 
-const a = document.createElement("a");
-a.href = url;
-a.download = "anonymised-cv.txt";
-document.body.appendChild(a);
-a.click();
-a.remove();
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "anonymised-cv.txt";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 
-URL.revokeObjectURL(url);
+  URL.revokeObjectURL(url);
 });
+
+function normaliseBaseUrl(url) {
+  return (url || "").trim().replace(/\/+$/, "");
+}
 
 anonymiseBtn.addEventListener("click", async () => {
-try {
-setStatus("");
-setOutput("");
+  try {
+    setStatus("");
+    setOutput("");
 
-const inputText = (cvTextEl.value || "").trim();
-if (!inputText) {
-setStatus("Please paste CV text (or upload a .txt) first.", "error");
-return;
-}
+    const base = normaliseBaseUrl(API_BASE_URL);
+    if (!base) {
+      setStatus("API_BASE_URL is not set (frontend/config.js).", "error");
+      return;
+    }
 
-setBusy(true);
-setStatus("Calling anonymise API…");
+    const inputText = (cvTextEl.value || "").trim();
+    if (!inputText) {
+      setStatus("Please paste CV text (or upload a .txt) first.", "error");
+      return;
+    }
 
-// We expect: POST { text: "..." } and response: { anonymisedText: "..." }
-const res = await fetch(`${API_BASE_URL.replace(/\/$/, "")}/anonymise`, {
-method: "POST",
-headers: { "Content-Type": "application/json" },
-body: JSON.stringify({ text: inputText }),
-});
+    setBusy(true);
+    setStatus("Checking API health…");
 
-const raw = await res.text();
-let data;
-try {
-data = JSON.parse(raw);
-} catch {
-throw new Error(`Non-JSON response (${res.status}): ${raw.slice(0, 300)}`);
-}
+    // quick health check (helps you debug 502/CORS fast)
+    const healthRes = await fetch(`${base}/health`, { method: "GET" });
+    if (!healthRes.ok) {
+      throw new Error(`Health check failed (${healthRes.status}).`);
+    }
 
-if (!res.ok) {
-const msg = data && (data.message || data.error) ? (data.message || data.error) : raw;
-throw new Error(`API error ${res.status}: ${msg}`);
-}
+    setStatus("Calling anonymise API…");
 
-const anonymisedText =
-data.anonymisedText ||
-data.body || // some lambdas return { body: "..." }
-"";
+    const res = await fetch(`${base}/anonymise`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: inputText }),
+    });
 
-if (!anonymisedText) {
-throw new Error("API responded OK but did not return anonymisedText.");
-}
+    const raw = await res.text();
+    let data;
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      throw new Error(`Non-JSON response (${res.status}): ${raw.slice(0, 300)}`);
+    }
 
-setOutput(anonymisedText);
-setStatus("Done.");
-} catch (err) {
-setStatus(err.message || "Unknown error", "error");
-} finally {
-setBusy(false);
-}
+    if (!res.ok) {
+      const msg = (data && (data.detail || data.message || data.error)) || raw;
+      throw new Error(`API error ${res.status}: ${msg}`);
+    }
+
+    const anonymisedText = data.anonymisedText || "";
+    if (!anonymisedText) {
+      throw new Error("API responded OK but did not return anonymisedText.");
+    }
+
+    setOutput(anonymisedText);
+    setStatus("Done.");
+  } catch (err) {
+    // CORS failures often surface as TypeError: Failed to fetch
+    setStatus(err.message || "Unknown error", "error");
+  } finally {
+    setBusy(false);
+  }
 });
