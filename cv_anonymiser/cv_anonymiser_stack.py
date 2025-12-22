@@ -55,7 +55,7 @@ class CvAnonymiserStack(Stack):
         # Lambda API (FastAPI + Mangum)
         # -------------------------
 
-        cloudfront_origin = f"https://{dewzjrqq4bxoq.cloudfront.net}"
+        cloudfront_origin = "https://{dewzjrqq4bxoq.cloudfront.net"
 
 
         cv_lambda = lambda_.Function(
