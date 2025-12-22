@@ -326,13 +326,13 @@ class CvAnonymiserStack(Stack):
         # DynamoDB alarms
         ddb_throttle_alarm = cloudwatch.Alarm(
             self,
-            "AlarmDdbWriteThrottles",
-            metric=audit_table.metric_write_throttle_events(period=Duration.minutes(1), statistic="sum"),
+            "AlarmDdbUserErrors",
+            metric=audit_table.metric_user_errors(period=Duration.minutes(1), statistic="sum"),
             threshold=1,
             evaluation_periods=1,
             datapoints_to_alarm=1,
             treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
-            alarm_description="DynamoDB write throttles detected.",
+            alarm_description="DynamoDB user errors (including throttles) detected.",
         )
         ddb_throttle_alarm.add_alarm_action(alarm_action)
 
@@ -400,8 +400,8 @@ class CvAnonymiserStack(Stack):
                 left=[cv_lambda.metric_duration(period=Duration.minutes(5), statistic="p95")],
             ),
             cloudwatch.GraphWidget(
-                title="DynamoDB - WriteThrottleEvents (sum)",
-                left=[audit_table.metric_write_throttle_events(period=Duration.minutes(1), statistic="sum")],
+                title="DynamoDB - User Errors (sum)",
+                left=[audit_table.metric_user_errors(period=Duration.minutes(1), statistic="sum")],
             ),
             cloudwatch.GraphWidget(
                 title="CloudFront - 5xx Error Rate (%)",
