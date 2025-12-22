@@ -356,7 +356,7 @@ class CvAnonymiserStack(Stack):
             period=Duration.minutes(5),
             statistic="sum",
             dimensions_map={
-                "WebACL": web_acl.name,
+                "WebACL": "cv-anonymiser-waf",  # Must match the web ACL logical name
                 "Rule": "ALL",
                 "Region": self.region,
             },
