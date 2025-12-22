@@ -1,4 +1,3 @@
-
 from aws_cdk import (
     Duration,
     RemovalPolicy,
@@ -37,13 +36,15 @@ class CvAnonymiserStack(Stack):
             "RedactionRules",
             parameter_name="/cv-anonymiser/redaction-rules",
             string_value='{"redact":["email","phone"],"salt":"demo-salt-change-me"}',
-            # NOTE: SecureString "type" is deprecated in CDK v2; use StringParameter + WithDecryption in code.
         )
 
         audit_table = dynamodb.Table(
             self,
             "AuditTable",
-            partition_key=dynamodb.Attribute(name="requestId", type=dynamodb.AttributeType.STRING),
+            partition_key=dynamodb.Attribute(
+                name="requestId",
+                type=dynamodb.AttributeType.STRING,
+            ),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             time_to_live_attribute="ttl",
             removal_policy=RemovalPolicy.DESTROY,  # ok for assignment
@@ -54,8 +55,6 @@ class CvAnonymiserStack(Stack):
         # -------------------------
         # Lambda API (FastAPI + Mangum)
         # -------------------------
-
-
         cv_lambda = lambda_.Function(
             self,
             "CvAnonymiserFunction",
@@ -67,8 +66,7 @@ class CvAnonymiserStack(Stack):
             environment={
                 "RULES_PARAM_NAME": rules_param.parameter_name,
                 "AUDIT_TABLE_NAME": audit_table.table_name,
-                "FRONTEND_ORIGIN": "https://dewzjrqq4bxoq.cloudfront.net",
-                # FRONTEND_ORIGIN gets set once we create CloudFront below
+                # FRONTEND_ORIGIN set after CloudFront is created
             },
         )
 
@@ -77,26 +75,13 @@ class CvAnonymiserStack(Stack):
         key.grant_decrypt(cv_lambda)
 
         # -------------------------
-        # API Gateway
+        # API Gateway (proxy to FastAPI routes)
         # -------------------------
-
         api = apigateway.LambdaRestApi(
             self,
             "CvAnonymiserApi",
             handler=cv_lambda,
             proxy=True,
-            default_cors_preflight_options=apigateway.CorsOptions(
-                allow_origins=apigateway.Cors.ALL_ORIGINS,   # tighten later
-                allow_methods=["GET", "POST", "OPTIONS"],
-                allow_headers=[
-                    "Content-Type",
-                    "Authorization",
-                    "X-Amz-Date",
-                    "X-Api-Key",
-                    "X-Amz-Security-Token",
-                ],
-                max_age=Duration.minutes(10),
-            ),
             deploy_options=apigateway.StageOptions(
                 stage_name="prod",
                 tracing_enabled=True,
@@ -162,7 +147,7 @@ class CvAnonymiserStack(Stack):
             enforce_ssl=True,
             versioned=True,
             removal_policy=RemovalPolicy.DESTROY,  # ok for assignment
-            auto_delete_objects=True,              # ok for assignment
+            auto_delete_objects=True,  # ok for assignment
         )
 
         distribution = cloudfront.Distribution(
@@ -175,7 +160,6 @@ class CvAnonymiserStack(Stack):
             ),
             default_root_object="index.html",
             error_responses=[
-                # If you later turn this into an SPA, these help avoid 404s on refresh.
                 cloudfront.ErrorResponse(
                     http_status=403,
                     response_http_status=200,
@@ -189,11 +173,11 @@ class CvAnonymiserStack(Stack):
             ],
         )
 
-        # Lock down CORS to your CloudFront site (good for security marks)
-        frontend_origin = f"[https://{distribution.domain_name}]https://{distribution.domain_name}"
+        # ✅ Correct origin for browser CORS matching
+        frontend_origin = f"https://{distribution.domain_name}"
         cv_lambda.add_environment("FRONTEND_ORIGIN", frontend_origin)
 
-        # Deploy frontend assets from ./frontend AND generate config.js with the current API URL
+        # Deploy frontend assets from ./frontend AND generate config.js with API URL
         s3deploy.BucketDeployment(
             self,
             "DeployFrontend",
@@ -202,7 +186,6 @@ class CvAnonymiserStack(Stack):
             distribution_paths=["/*"],
             sources=[
                 s3deploy.Source.asset("frontend"),
-                # overwrite/ensure config.js always matches deployed API URL
                 s3deploy.Source.data(
                     "config.js",
                     f'window.APP_CONFIG={{API_BASE_URL:"{api.url}"}};',
