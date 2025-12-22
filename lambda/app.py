@@ -12,6 +12,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from mangum import Mangum
 
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # tighten later
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app = FastAPI(title="CV Anonymiser")
 
 # CORS: allow ONLY your CloudFront site (set by CDK), fallback to "*" for local dev.
