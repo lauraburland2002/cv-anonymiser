@@ -340,7 +340,7 @@ class CvAnonymiserStack(Stack):
         cf_5xx_alarm = cloudwatch.Alarm(
             self,
             "AlarmCloudFront5xxRate",
-            metric=distribution.metric_5xx_error_rate(period=Duration.minutes(5), statistic="avg"),
+            metric=distribution.metric5xx_error_rate(period=Duration.minutes(5), statistic="avg"),
             threshold=1.0,  # %
             evaluation_periods=1,
             datapoints_to_alarm=1,
@@ -405,7 +405,7 @@ class CvAnonymiserStack(Stack):
             ),
             cloudwatch.GraphWidget(
                 title="CloudFront - 5xx Error Rate (%)",
-                left=[distribution.metric_5xx_error_rate(period=Duration.minutes(5), statistic="avg")],
+                left=[distribution.metric5xx_error_rate(period=Duration.minutes(5), statistic="avg")],
             ),
             cloudwatch.GraphWidget(
                 title="WAF - BlockedRequests (sum)",
