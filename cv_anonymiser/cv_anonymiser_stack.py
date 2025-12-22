@@ -65,6 +65,7 @@ class CvAnonymiserStack(Stack):
             environment={
                 "RULES_PARAM_NAME": rules_param.parameter_name,
                 "AUDIT_TABLE_NAME": audit_table.table_name,
+                "FRONTEND_ORIGIN": f"[https://{dewzjrqq4bxoq.cloudfront.net}]https://{dewzjrqq4bxoq.cloudfront.net}", 
                 # FRONTEND_ORIGIN gets set once we create CloudFront below
             },
         )
