@@ -54,6 +54,10 @@ class CvAnonymiserStack(Stack):
         # -------------------------
         # Lambda API (FastAPI + Mangum)
         # -------------------------
+
+        cloudfront_origin = f"https://{dewzjrqq4bxoq.cloudfront.net}"
+
+
         cv_lambda = lambda_.Function(
             self,
             "CvAnonymiserFunction",
@@ -65,7 +69,7 @@ class CvAnonymiserStack(Stack):
             environment={
                 "RULES_PARAM_NAME": rules_param.parameter_name,
                 "AUDIT_TABLE_NAME": audit_table.table_name,
-                "FRONTEND_ORIGIN": f"[https://{dewzjrqq4bxoq.cloudfront.net}]https://{dewzjrqq4bxoq.cloudfront.net}", 
+                "FRONTEND_ORIGIN": cloudfront_origin,
                 # FRONTEND_ORIGIN gets set once we create CloudFront below
             },
         )
