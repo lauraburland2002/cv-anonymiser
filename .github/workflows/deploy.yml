@@ -51,6 +51,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r lambda/requirements.txt -t lambda
 
+      # ---------- Tests ----------
+      - name: Pytest (unit tests)
+        run: |
+          pip install pytest
+          pytest -q
+
       - name: Set env vars for CDK bootstrap/deploy
         run: |
           echo "AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)" >> $GITHUB_ENV
