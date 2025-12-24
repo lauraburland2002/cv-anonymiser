@@ -4,6 +4,7 @@ import re
 import time
 import uuid
 import hashlib
+import logging
 from typing import Any, Dict, List, Optional
 
 import boto3
@@ -12,12 +13,38 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from mangum import Mangum
 
+# -------------------------
+# Logging (PII-safe)
+# -------------------------
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+
+def safe_log_value(value: str, *, max_len: int = 120) -> str:
+    """
+    Guardrail: never allow long free-text (e.g. CV content) into logs.
+    Also redacts obvious email/phone patterns even for short strings.
+    """
+    if value is None:
+        return ""
+    value = str(value)
+
+    if len(value) > max_len:
+        return "[REDACTED_FREE_TEXT]"
+
+    value = re.sub(
+        r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b",
+        "[REDACTED_EMAIL]",
+        value,
+    )
+    value = re.sub(r"\b(\+?\d[\d\s().-]{7,}\d)\b", "[REDACTED_PHONE]", value)
+    return value
+
 
 # ✅ 1) Create the app FIRST
 app = FastAPI(title="CV Anonymiser")
 
 # ✅ 2) Then add middleware
-# CORS: allow ONLY your CloudFront site (set by CDK), fallback to "*" for local dev.
 frontend_origin = os.getenv("FRONTEND_ORIGIN", "*")
 allow_origins = ["*"] if frontend_origin == "*" else [frontend_origin]
 
@@ -59,6 +86,7 @@ def _load_rules() -> Dict[str, Any]:
         if not isinstance(rules, dict):
             raise ValueError("Rules param JSON must be an object")
     except Exception:
+        # For MVP: fall back safely (still no raw CV stored)
         rules = {"redact": ["email", "phone"], "salt": SALT_FALLBACK}
 
     _rules_cache = rules
@@ -101,9 +129,12 @@ def _salted_hash(text: str, salt: str) -> str:
     return h.hexdigest()
 
 
-def _write_audit(request_id: str, cv_hash: str, rule_counts: Dict[str, int]) -> None:
+def _write_audit(request_id: str, cv_hash: str, rule_counts: Dict[str, int]) -> bool:
+    """
+    Writes a minimal audit row (no PII). Returns True if written, else False.
+    """
     if not AUDIT_TABLE_NAME:
-        return
+        return False  # allow running without audit table during early MVP
 
     table = dynamodb.Table(AUDIT_TABLE_NAME)
 
@@ -114,20 +145,26 @@ def _write_audit(request_id: str, cv_hash: str, rule_counts: Dict[str, int]) -> 
         "requestId": request_id,
         "ts": now,
         "ttl": ttl,
-        "cvHash": cv_hash,         # no raw CV stored
-        "ruleCounts": rule_counts, # no raw CV stored
+        "cvHash": cv_hash,          # no raw CV stored
+        "ruleCounts": rule_counts,  # no raw CV stored
     }
 
     table.put_item(Item=item)
+    return True
 
 
 @app.get("/health")
 def health() -> Dict[str, Any]:
+    # Safe log (no PII)
+    logger.info("health_check")
     return {"ok": True}
 
 
 @app.post("/anonymise")
 def anonymise(req: AnonymiseRequest) -> Dict[str, Any]:
+    start = time.time()
+
+    # IMPORTANT: never log req.text (PII risk)
     text = (req.text or "").strip()
     if not text:
         raise HTTPException(status_code=400, detail="text is required")
@@ -139,8 +176,24 @@ def anonymise(req: AnonymiseRequest) -> Dict[str, Any]:
     anonymised, counts = _apply_redaction(text, redact)
     request_id = str(uuid.uuid4())
 
+    # Only store salted hash + counts (no raw CV stored)
     cv_hash = _salted_hash(text, salt)
-    _write_audit(request_id, cv_hash, counts)
+    audit_written = _write_audit(request_id, cv_hash, counts)
+
+    duration_ms = int((time.time() - start) * 1000)
+
+    # PII-safe structured log: no text, no anonymised CV, no emails/phones.
+    logger.info(
+        "anonymise_complete",
+        extra={
+            "requestId": request_id,
+            "rulesApplied": redact,
+            "ruleCounts": counts,
+            "durationMs": duration_ms,
+            "auditWritten": audit_written,
+            "origin": safe_log_value(frontend_origin),  # short + redacted
+        },
+    )
 
     return {
         "requestId": request_id,
