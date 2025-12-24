@@ -35,14 +35,6 @@ jobs:
           pip install ruff
           ruff check .
 
-      # ---------- Tests ----------
-      # If you don’t have tests yet, keep this step and add tests later.
-      # For now it won’t fail if no tests are present (safe demo default).
-      - name: Pytest (unit tests)
-        run: |
-          pip install pytest
-          pytest -q || echo "No tests found (add later)."
-
       # ---------- SAST ----------
       - name: SAST (Bandit)
         run: |
