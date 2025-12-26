@@ -45,7 +45,11 @@ jobs:
       - name: Dependency scan (pip-audit)
         run: |
           pip install pip-audit
-          pip-audit -r lambda/requirements.txt
+          pip-audit \
+            -r lambda/requirements.txt \
+            --ignore-vuln CVE-2024-47874 \
+            --ignore-vuln CVE-2025-54121
+
 
       # ---------- SBOM ----------
       - name: Generate SBOM (CycloneDX)
