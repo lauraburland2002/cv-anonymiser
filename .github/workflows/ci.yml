@@ -54,15 +54,11 @@ jobs:
         run: |
           pip install cyclonedx-bom
 
-          # SBOM for app dependencies (root requirements)
-          cyclonedx-py requirements \
-            -r requirements.txt \
-            -o sbom-app.json
+          # SBOM for CDK/app deps
+          cyclonedx-py requirements -i requirements.txt -o sbom-app.json
 
-          # SBOM for Lambda dependencies
-          cyclonedx-py requirements \
-            -r lambda/requirements.txt \
-            -o sbom-lambda.json
+          # SBOM for Lambda deps
+          cyclonedx-py requirements -i lambda/requirements.txt -o sbom-lambda.json
 
       - name: Upload SBOM artifact
         uses: actions/upload-artifact@v4
