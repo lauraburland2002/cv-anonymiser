@@ -64,8 +64,10 @@ jobs:
             -r lambda/requirements.txt \
             -o sbom-lambda.json
 
-             - name: Upload SBOM artifact
+      - name: Upload SBOM artifact
         uses: actions/upload-artifact@v4
         with:
-          name: sbom-cyclonedx
-          path: sbom.cdx.json
+          name: sbom
+          path: |
+            sbom-app.json
+            sbom-lambda.json
