@@ -110,7 +110,7 @@ jobs:
 
       - name: Run Cypress (post-deploy smoke)
         env:
-          CYPRESS_baseUrl: ${{ secrets.CLOUDFRONT_URL }}
+          CYPRESS_baseUrl: ${{ secrets.https://dewzjrqq4bxoq.cloudfront.net }}
         run: npx cypress run --browser chrome
 
       # Notify on failure (SNS -> your email subscription)
