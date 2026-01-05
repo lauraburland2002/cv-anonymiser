@@ -110,15 +110,10 @@ jobs:
       # Notify on failure (SNS -> your email subscription)
       - name: Notify SNS on failure
         if: failure()
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::460742884922:role/AWSDeployFromGitHub
-          aws-region: eu-west-2
-
-      - name: Publish failure alert
-        if: failure()
+        env:
+          SNS_TOPIC_ARN: ${{ secrets.SNS_TOPIC_ARN }}
         run: |
           aws sns publish \
-            --topic-arn "${{ secrets.ALERTS_TOPIC_ARN }}" \
-            --subject "🚨 CV Anonymiser E2E failed (post-deploy)" \
-            --message "Cypress post-deploy smoke tests failed for ${{ secrets.CLOUDFRONT_URL }}. Check GitHub Actions run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            --topic-arn "$SNS_TOPIC_ARN" \
+            --subject "🚨 CV Anonymiser Post-Deploy Check Failed" \
+            --message "Cypress smoke tests failed against CloudFront."
