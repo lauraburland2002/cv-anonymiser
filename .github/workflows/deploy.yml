@@ -78,6 +78,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::460742884922:role/AWSDeployFromGitHub
+          aws-region: eu-west-2
+
       # Wait for CloudFront to serve the latest deploy (simple retry loop)
       - name: Wait for CloudFront to respond
         run: |
