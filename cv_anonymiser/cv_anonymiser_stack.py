@@ -388,7 +388,7 @@ class CvAnonymiserStack(Stack):
             self,
             "CvAnonCanaryDeployment",
             alias=live_alias,
-            deployment_config=codedeploy.LambdaDeploymentConfig.CANARY_10_PERCENT_5MINUTES,
+            deployment_config=codedeploy.LambdaDeploymentConfig.CANARY_10_PERCENT_5_MINUTES,
             alarms=[
                 lambda_errors_alarm,
                 api_5xx_alarm,
