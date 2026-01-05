@@ -71,7 +71,7 @@ jobs:
       - name: CDK deploy
         run: cdk deploy --require-approval never
 
-        e2e:
+  e2e:
     runs-on: ubuntu-latest
     needs: deploy
     steps:
