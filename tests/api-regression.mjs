@@ -30,7 +30,7 @@ async function postJson(url, body) {
   assert(json, "Expected JSON response");
 
   // Adjust these keys to match your actual API response
-  const output = json.anonymised_text ?? json.redacted_text ?? json.output ?? "";
+  const output = json.anonymisedText || json.anonymised_text || json.redacted_text || json.output || "";
   assert(typeof output === "string" && output.length > 0, "Expected a non-empty anonymised output string");
 
   // 2) Behaviour/privacy check
