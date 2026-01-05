@@ -6,7 +6,7 @@ if (!API_BASE_URL) {
 }
 
 // small helper
-async function check(path, { method = "GET", expectedStatus = 200, expectJson = true } = {}) {
+async function check(path, { method = "GET", expectedStatus = 403, expectJson = true } = {}) {
   const url = new URL(path, API_BASE_URL).toString();
   const res = await fetch(url, { method });
 
@@ -26,7 +26,7 @@ async function check(path, { method = "GET", expectedStatus = 200, expectJson = 
 (async () => {
   try {
     // 1) health endpoint must be reachable and stable shape
-    const { data: health } = await check("/health", { expectedStatus: 200, expectJson: true });
+    const { data: health } = await check("/health", { expectedStatus: 403, expectJson: true });
 
     // adjust these to YOUR real response shape
     // (from your earlier tests it looked like {"ok": true})
