@@ -71,7 +71,7 @@ jobs:
       - name: CDK deploy
         run: cdk deploy --require-approval never
 
-  e2e:
+  E2E Smoke & API Regression:
     runs-on: ubuntu-latest
     needs: deploy
     steps:
@@ -125,3 +125,16 @@ jobs:
             --topic-arn "$SNS_TOPIC_ARN" \
             --subject "🚨 CV Anonymiser Post-Deploy Check Failed" \
             --message "Cypress smoke tests failed against CloudFront."
+
+      - name: Install test dependencies
+        run: npm install
+
+      - name: Run API regression (post-deploy)
+        env:
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+        run: node tests/api-regression.mjs
+
+      - name: Run Cypress (post-deploy smoke)
+        env:
+          CYPRESS_baseUrl: ${{ secrets.CLOUDFRONT_URL }}
+        run: npx cypress run --browser chrome
