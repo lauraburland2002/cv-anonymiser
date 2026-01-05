@@ -26,6 +26,7 @@ async function postJson(url, body) {
 
   // 1) Contract check
   assert.strictEqual(res.status, 200, `Expected 200, got ${res.status}. Body: ${text}`);
+  console.log("FULL RESPONSE JSON:", JSON.stringify(json, null, 2));
   assert(json, "Expected JSON response");
 
   // Adjust these keys to match your actual API response

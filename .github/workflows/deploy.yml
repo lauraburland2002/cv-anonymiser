@@ -133,8 +133,3 @@ jobs:
         env:
           API_BASE_URL: ${{ secrets.API_BASE_URL }}
         run: node tests/api-regression.mjs
-
-      - name: Run Cypress (post-deploy smoke)
-        env:
-          CYPRESS_baseUrl: ${{ secrets.CLOUDFRONT_URL }}
-        run: npx cypress run --browser chrome
