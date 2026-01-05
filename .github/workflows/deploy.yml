@@ -111,9 +111,11 @@ jobs:
       - name: Notify SNS on failure
         if: failure()
         env:
+          AWS_REGION: eu-west-2
           SNS_TOPIC_ARN: ${{ secrets.SNS_TOPIC_ARN }}
         run: |
           aws sns publish \
+            --region "$AWS_REGION" \
             --topic-arn "$SNS_TOPIC_ARN" \
             --subject "🚨 CV Anonymiser Post-Deploy Check Failed" \
             --message "Cypress smoke tests failed against CloudFront."
