@@ -106,7 +106,7 @@ jobs:
           node-version: "20"
 
       - name: Install Cypress
-        run: npm ci
+        run: npm install
 
       - name: Run Cypress (post-deploy smoke)
         env:
