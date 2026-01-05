@@ -1,45 +1,40 @@
-const API_BASE_URL = process.env.API_BASE_URL;
+import assert from "node:assert";
 
-if (!API_BASE_URL) {
-  console.error("Missing API_BASE_URL env var");
-  process.exit(1);
-}
+const API_BASE_URL = process.env.API_BASE_URL; // e.g. [https://xxxx.execute-api.../prod]https://xxxx.execute-api.../prod
+const URL = `${API_BASE_URL}/anonymise`;        // change to your real route
 
-// small helper
-async function check(path, { method = "GET", expectedStatus = 403, expectJson = true } = {}) {
-  const url = new URL(path, API_BASE_URL).toString();
-  const res = await fetch(url, { method });
-
-  if (res.status !== expectedStatus) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`${method} ${url} => expected ${expectedStatus}, got ${res.status}. Body: ${body}`);
-  }
-
-  if (expectJson) {
-    const data = await res.json();
-    return { res, data };
-  }
-
-  return { res, data: null };
+async function postJson(url, body) {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const text = await res.text();
+  let json;
+  try { json = JSON.parse(text); } catch { json = null; }
+  return { res, json, text };
 }
 
 (async () => {
-  try {
-    // 1) health endpoint must be reachable and stable shape
-    const { data: health } = await check("/health", { expectedStatus: 403, expectJson: true });
+  assert(API_BASE_URL, "API_BASE_URL env var not set");
 
-    // adjust these to YOUR real response shape
-    // (from your earlier tests it looked like {"ok": true})
-    if (health.ok !== true) {
-      throw new Error(`GET /health returned unexpected JSON: ${JSON.stringify(health)}`);
-    }
+  const payload = {
+    text: "Contact me at jane.doe@example.com or +44 7700 900123",
+  };
 
-    // 2) Optional: ensure API rejects wrong method (regression guard)
-    await check("/health", { method: "POST", expectedStatus: 405, expectJson: false });
+  const { res, json, text } = await postJson(URL, payload);
 
-    console.log("✅ API regression checks passed");
-  } catch (err) {
-    console.error("❌ API regression checks failed:", err.message);
-    process.exit(1);
-  }
+  // 1) Contract check
+  assert.strictEqual(res.status, 200, `Expected 200, got ${res.status}. Body: ${text}`);
+  assert(json, "Expected JSON response");
+
+  // Adjust these keys to match your actual API response
+  const output = json.anonymised_text ?? json.redacted_text ?? json.output ?? "";
+  assert(typeof output === "string" && output.length > 0, "Expected a non-empty anonymised output string");
+
+  // 2) Behaviour/privacy check
+  assert(!output.includes("jane.doe@example.com"), "Email was not redacted");
+  assert(!output.includes("+44 7700 900123"), "Phone number was not redacted");
+
+  console.log("✅ API regression passed");
 })();
