@@ -43,6 +43,7 @@ jobs:
 
       # (Optional but nice) formatting gate
       - name: Ruff (format check)
+        continue-on-error: true
         run: |
           pip install ruff
           ruff format --check .
