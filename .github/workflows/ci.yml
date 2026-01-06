@@ -10,8 +10,13 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   ci:
+    name: CI checks
     runs-on: ubuntu-latest
 
     steps:
@@ -28,36 +33,44 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -r lambda/requirements.txt
+          pip install pytest
 
-      # ---------- Linting ----------
+      # ---------- 1) Linting ----------
       - name: Ruff (lint)
         run: |
           pip install ruff
           ruff check .
 
-      # ---------- SAST ----------
+      # (Optional but nice) formatting gate
+      - name: Ruff (format check)
+        run: |
+          pip install ruff
+          ruff format --check .
+
+      # ---------- 2) Unit tests ----------
+      - name: Pytest (unit tests)
+        run: pytest -q
+
+      # ---------- 3) SAST ----------
       - name: SAST (Bandit)
         run: |
           pip install bandit
           bandit -r lambda -ll
 
-      # ---------- Dependency scanning ----------
-      - name: Dependency scan (pip-audit)
+      # ---------- 4) Dependency scanning ----------
+      - name: Dependency scan (pip-audit) - app + lambda
         run: |
           pip install pip-audit
-          pip-audit \
-            -r lambda/requirements.txt \
+          pip-audit -r requirements.txt
+          pip-audit -r lambda/requirements.txt \
             --ignore-vuln CVE-2024-47874 \
             --ignore-vuln CVE-2025-54121
 
+      # ---------- 5) SBOM ----------
       - name: Generate SBOM (CycloneDX)
         run: |
           pip install cyclonedx-bom
-
-          # SBOM for CDK/app deps
           cyclonedx-py requirements -i requirements.txt -o sbom-app.json
-
-          # SBOM for Lambda deps
           cyclonedx-py requirements -i lambda/requirements.txt -o sbom-lambda.json
 
       - name: Upload SBOM artifact
