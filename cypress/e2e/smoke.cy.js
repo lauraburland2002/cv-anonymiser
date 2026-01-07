@@ -2,7 +2,7 @@ describe("CV Anonymiser - CloudFront smoke tests", () => {
     it("loads the homepage", () => {
       cy.visit("/");
       // Page contains your main CTA button
-      cy.get("#anonymiseWoo", { timeout: 20000 }).should("be.visible");
+      cy.get("#anonymiseBtn", { timeout: 20000 }).should("be.visible");
     });
   
     it("anonymises sample text (redacts email + phone)", () => {
